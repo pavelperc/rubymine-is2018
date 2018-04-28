@@ -35,36 +35,19 @@ class PyConstantExpression : PyInspection() {
             // if we couldn't calculate boolean value - calculateValue returns null
             // else show inspection with calculated value
             condition?.calculateValue()?.toBoolean()?.also {
-                registerProblem(condition, "The condition is always $it")
+                registerProblem(condition, "О ужас!!! Условие всегда будет $it!!!")
             }
             
-//            if (condition is PyBoolLiteralExpression) {
-//                registerProblem(condition, "The condition is always " + condition.value + " Катя, ты лучшая!!!! )")
-//            }
-//            
-//            if (condition is PyBinaryExpression) {
-//                val left = condition.leftExpression
-//                val right = condition.rightExpression
-//                val operator = condition.operator
-//                
-//                if (operator == PyTokenTypes.EQEQ) {
-//                    if (left is PyNumericLiteralExpression && right is PyNumericLiteralExpression) {
-//                        if (left.bigIntegerValue == right.bigIntegerValue) {
-//                            registerProblem(condition, "AAAAAAAAAAAAAAA x == x!")
-//                        }
-//                    }
-//                }
-//            }
         }
         
-        fun Boolean.toBigInteger() = if (this) BigInteger.ONE else BigInteger.ZERO
-        fun BigInteger.toBoolean() = this != BigInteger.ZERO
+        private fun Boolean.toBigInteger() = if (this) BigInteger.ONE else BigInteger.ZERO
+        private fun BigInteger.toBoolean() = this != BigInteger.ZERO
         
         
         /** If the expression result is Boolean,
          * then it is casted to [BigInteger] through [toBigInteger].
-         * Returns null if the expression can not be calculated.*/
-        fun PyExpression.calculateValue(): BigInteger? {
+         * - Returns null if the expression can not be calculated.*/
+        private fun PyExpression.calculateValue(): BigInteger? {
             
             if (this is PyBinaryExpression) {// a + b,  2 > 2, True and 5, ...
                 val leftVal = this.leftExpression.calculateValue() ?: return null// .also { registerProblem(this, "returned null in 1: ${this.text}")}
@@ -85,13 +68,13 @@ class PyConstantExpression : PyInspection() {
                     PyTokenTypes.DIV -> (leftVal / rightVal)
                     PyTokenTypes.EXP -> leftVal.pow(rightVal.toInt())
                     PyTokenTypes.PERC -> (leftVal % rightVal)
-                    PyTokenTypes.AND_KEYWORD -> (leftVal.toBoolean() && leftVal.toBoolean()).toBigInteger()
-                    PyTokenTypes.OR_KEYWORD -> (leftVal.toBoolean() || leftVal.toBoolean()).toBigInteger()
+                    PyTokenTypes.AND_KEYWORD -> (leftVal.toBoolean() && rightVal.toBoolean()).toBigInteger()
+                    PyTokenTypes.OR_KEYWORD -> (leftVal.toBoolean() || rightVal.toBoolean()).toBigInteger()
                     else -> null// .also { registerProblem(this, "returned null in 4: ${this.text}")}
                 }
             } else if (this is PyPrefixExpression) {// not True
                 return when (this.operator) {
-                    PyTokenTypes.NOT_KEYWORD -> this.operand?.calculateValue()
+                    PyTokenTypes.NOT_KEYWORD -> this.operand?.calculateValue()?.toBoolean()?.not()?.toBigInteger()
                     else -> null// .also { registerProblem(this, "returned null in 5: ${this.text}")}
                 }
             } else if (this is PyParenthesizedExpression) {// (2 + 2)
