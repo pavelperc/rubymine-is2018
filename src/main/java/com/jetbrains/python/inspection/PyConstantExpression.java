@@ -1,4 +1,4 @@
-package com.jetbrains.python.inspection;
+/*package com.jetbrains.python.inspection;
 
 import com.intellij.codeInspection.LocalInspectionToolSession;
 import com.intellij.codeInspection.ProblemsHolder;
@@ -41,3 +41,4 @@ public class PyConstantExpression extends PyInspection {
         }
     }
 }
+*/
