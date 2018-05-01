@@ -35,14 +35,13 @@ class PyConstantExpression : PyInspection() {
             // if we couldn't calculate boolean value - calculateValue returns null
             // else show inspection with calculated value
             condition?.calculateValue()?.toBoolean()?.also {
-                registerProblem(condition, "О ужас!!! Условие всегда будет $it!!!")
+                registerProblem(condition, "Oh no!!! The condition is always ${it.toString().toUpperCase()}!!! Do something!!!")
             }
-            
         }
         
         private fun Boolean.toBigInteger() = if (this) BigInteger.ONE else BigInteger.ZERO
-        private fun BigInteger.toBoolean() = this != BigInteger.ZERO
         
+        private fun BigInteger.toBoolean() = this != BigInteger.ZERO
         
         /** If the expression result is Boolean,
          * then it is casted to [BigInteger] through [toBigInteger].
@@ -50,22 +49,26 @@ class PyConstantExpression : PyInspection() {
         private fun PyExpression.calculateValue(): BigInteger? {
             
             if (this is PyBinaryExpression) {// a + b,  2 > 2, True and 5, ...
-                val leftVal = this.leftExpression.calculateValue() ?: return null// .also { registerProblem(this, "returned null in 1: ${this.text}")}
-                val rightVal = this.rightExpression?.calculateValue() ?: return null// .also { registerProblem(this, "returned null in 2: ${this.text}")}
+                val leftVal = this.leftExpression.calculateValue()
+                        ?: return null// .also { registerProblem(this, "returned null in 1: ${this.text}")}
+                val rightVal = this.rightExpression?.calculateValue()
+                        ?: return null// .also { registerProblem(this, "returned null in 2: ${this.text}")}
                 
-                val operator = this.operator ?: return null// .also { registerProblem(this, "returned null in 3: ${this.text}")}
+                val operator =
+                    this.operator ?: return null// .also { registerProblem(this, "returned null in 3: ${this.text}")}
                 
                 return when (operator) {
                     PyTokenTypes.EQEQ -> (leftVal == rightVal).toBigInteger()
                     PyTokenTypes.NE -> (leftVal != rightVal).toBigInteger()
                     PyTokenTypes.LT -> (leftVal < rightVal).toBigInteger()
                     PyTokenTypes.GT -> (leftVal > rightVal).toBigInteger()
-                    PyTokenTypes.LE -> (leftVal >= rightVal).toBigInteger()
-                    PyTokenTypes.GE -> (leftVal <= rightVal).toBigInteger()
+                    PyTokenTypes.LE -> (leftVal <= rightVal).toBigInteger()
+                    PyTokenTypes.GE -> (leftVal >= rightVal).toBigInteger()
                     PyTokenTypes.PLUS -> (leftVal + rightVal)
                     PyTokenTypes.MINUS -> (leftVal - rightVal)
                     PyTokenTypes.MULT -> (leftVal * rightVal)
-                    PyTokenTypes.DIV -> (leftVal / rightVal)
+                    PyTokenTypes.FLOORDIV -> (leftVal / rightVal)// FLOORDIV - integer division: 5 // 2 = 2
+//                    PyTokenTypes.DIV -> (leftVal / rightVal)// conversion int to double is not supported yet
                     PyTokenTypes.EXP -> leftVal.pow(rightVal.toInt())
                     PyTokenTypes.PERC -> (leftVal % rightVal)
                     PyTokenTypes.AND_KEYWORD -> (leftVal.toBoolean() && rightVal.toBoolean()).toBigInteger()
@@ -88,5 +91,12 @@ class PyConstantExpression : PyInspection() {
             }
         }
         
+        
+//        private class InfinityRange(
+//            val start: BigInteger? = null,// null means +-infinity
+//            val end: BigInteger? = null
+//        ) {
+//            
+//        }
     }
 }
