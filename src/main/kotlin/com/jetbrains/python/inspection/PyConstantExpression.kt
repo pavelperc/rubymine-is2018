@@ -76,13 +76,14 @@ class PyConstantExpression : PyInspection() {
             }
             
             // all combinations should give the same result
-            val allMatch = boolMaps.drop(1).all {
-                    bools -> condition.calculateValue(bools)?.toBoolean() == calc2
+            val allMatch = boolMaps.drop(1).all { bools ->
+                condition.calculateValue(bools)?.toBoolean() == calc2
             }
             
             if (allMatch) {
-                registerProblem(condition, "The condition is always ${calc2.toStringCapFirst()}!" +
-                        " (It was really hard to discover!)"
+                registerProblem(
+                    condition, "The condition is always ${calc2.toStringCapFirst()}!" +
+                            " (It was really hard to discover!)"
                 )
             }
         }
@@ -93,19 +94,18 @@ class PyConstantExpression : PyInspection() {
         
         /** Converts bool to str with first capital letter: True or False*/
         private fun Boolean.toStringCapFirst() = toString().let { it[0].toUpperCase() + it.drop(1) }
-    
-    
-    
+        
+        
         /** Tries to calculate constant expression with booleans and integers.
-         * 
+         *
          * If the expression result is Boolean,
          * then it is casted to [BigInteger] through [toBigInteger].
-         * 
+         *
          * @param predefinedExpr map with some maybe inner expressions in the tree (or this expression),
          * which are considered to be concrete boolean values in this context.
-         * 
+         *
          * @return null if the expression can not be calculated. (and calculated value otherwise)*/
-        private fun PyExpression.calculateValue(predefinedExpr: Map<out PyExpression, Boolean> = emptyMap()): BigInteger? {
+        private fun PyExpression.calculateValue(predefinedExpr: Map<PyExpression, Boolean> = emptyMap()): BigInteger? {
             
             if (this in predefinedExpr) {
                 return predefinedExpr[this]!!.toBigInteger()
@@ -131,9 +131,9 @@ class PyConstantExpression : PyInspection() {
                     PyTokenTypes.MINUS -> (leftVal - rightVal)
                     PyTokenTypes.MULT -> (leftVal * rightVal)
                     PyTokenTypes.FLOORDIV -> if (rightVal == BigInteger.ZERO)
-                            null// can't calculate irregular expressions
-                        else
-                            (leftVal / rightVal)// FLOORDIV - integer division: 5 // 2 = 2
+                        null// can't calculate irregular expressions
+                    else
+                        (leftVal / rightVal)// FLOORDIV - integer division: 5 // 2 = 2
 //                    PyTokenTypes.DIV -> (leftVal / rightVal)// conversion int to double is not supported yet
                     PyTokenTypes.EXP -> leftVal.pow(rightVal.toInt())
                     PyTokenTypes.PERC -> (leftVal % rightVal)
@@ -168,7 +168,24 @@ class PyConstantExpression : PyInspection() {
                 
                 val operator = this.operator ?: return
                 
-                /* if false - division looks 5 > x. if true - like x < 5**/
+                when (operator) {// special cases for 'x or True', 'x and not x' (when bool == Int)
+                    PyTokenTypes.AND_KEYWORD, PyTokenTypes.OR_KEYWORD -> {
+                        if (leftExpr is PyReferenceExpression) {
+                            divisions += Division.notEq(leftExpr, leftExpr.text, BigInteger.ZERO)
+                        } else {
+                            leftExpr.collectDivisions(divisions)
+                        }
+                        if (rightExpr is PyReferenceExpression) {
+                            divisions += Division.notEq(rightExpr, rightExpr.text, BigInteger.ZERO)
+                        } else {
+                            rightExpr.collectDivisions(divisions)
+                        }
+                        return
+                    }
+                }
+                
+                
+                /* if false - division looks like 5 > x. if true - like x < 5**/
                 val leftIsId: Boolean
                 /** name of identifier*/
                 val name: String
@@ -218,8 +235,10 @@ class PyConstantExpression : PyInspection() {
                     }
                 }
                 
-            } else if (this is PyPrefixExpression) {// not (x > 5)
-                if (this.operator == PyTokenTypes.NOT_KEYWORD) {
+            } else if (this is PyPrefixExpression && this.operator == PyTokenTypes.NOT_KEYWORD) {// not (x > 5)
+                if (this.operand is PyReferenceExpression) {// 'x and not x'
+                    divisions += Division.notEq(this.operand!!, this.operand!!.text, BigInteger.ZERO)
+                } else {
                     this.operand?.collectDivisions(divisions)
                 }
             } else if (this is PyParenthesizedExpression) {// (a > 2 or a > 3)
@@ -233,7 +252,7 @@ class PyConstantExpression : PyInspection() {
          * @return list of maps (PyBinExpr -> Boolean). Each map contains one of possible situations for all
          * binary expressions to be True or False
          * */
-        private fun generateBoolListForDivisions(divisions: List<Division>): List<Map<PyBinaryExpression, Boolean>> {
+        private fun generateBoolListForDivisions(divisions: List<Division>): List<Map<PyExpression, Boolean>> {
             /** Divisions, grouped by names.*/
             val grouped = divisions.groupBy { it.idName }
             
@@ -292,7 +311,6 @@ class PyConstantExpression : PyInspection() {
             }
             
             // then just multiply rows with booleans for each name
-            
             val product = cartesianProduct(mapOfMatrices.values.toList())
             // короче, мы получили список списков списков пар (BinaryExpr, Boolean)
             // судя по моему листочку, это выглядит так:
@@ -307,7 +325,7 @@ class PyConstantExpression : PyInspection() {
          * For this example [idName] = "x", [point] = 5,
          * [left] = true, [atPoint] = false, [right] = false*/
         private class Division(
-            val binExpr: PyBinaryExpression,
+            val binExpr: PyExpression,
             val idName: String,
             val point: BigInteger,
             val left: Boolean,
@@ -315,22 +333,22 @@ class PyConstantExpression : PyInspection() {
             val right: Boolean
         ) {
             companion object {
-                fun less(binExpr: PyBinaryExpression, name: String, point: BigInteger) =
+                fun less(binExpr: PyExpression, name: String, point: BigInteger) =
                     Division(binExpr, name, point, true, false, false)
                 
-                fun lessEq(binExpr: PyBinaryExpression, name: String, point: BigInteger) =
+                fun lessEq(binExpr: PyExpression, name: String, point: BigInteger) =
                     Division(binExpr, name, point, true, true, false)
                 
-                fun greater(binExpr: PyBinaryExpression, name: String, point: BigInteger) =
+                fun greater(binExpr: PyExpression, name: String, point: BigInteger) =
                     Division(binExpr, name, point, false, false, true)
                 
-                fun greaterEq(binExpr: PyBinaryExpression, name: String, point: BigInteger) =
+                fun greaterEq(binExpr: PyExpression, name: String, point: BigInteger) =
                     Division(binExpr, name, point, false, true, true)
                 
-                fun eq(binExpr: PyBinaryExpression, name: String, point: BigInteger) =
+                fun eq(binExpr: PyExpression, name: String, point: BigInteger) =
                     Division(binExpr, name, point, false, true, false)
                 
-                fun notEq(binExpr: PyBinaryExpression, name: String, point: BigInteger) =
+                fun notEq(binExpr: PyExpression, name: String, point: BigInteger) =
                     Division(binExpr, name, point, true, false, true)
             }
             
@@ -396,7 +414,6 @@ private fun <T> cartesianProduct(setList: List<List<T>>): List<List<T>> {
 }
 
 
-
 fun main(args: Array<String>) {
     // test cartesianProduct
     
@@ -407,7 +424,6 @@ fun main(args: Array<String>) {
     )
     
     println(cartesianProduct(setList).joinToString("\n"))
-    
     
     
 }
