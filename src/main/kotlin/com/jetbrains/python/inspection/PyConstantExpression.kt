@@ -141,9 +141,12 @@ class PyConstantExpression : PyInspection() {
                     PyTokenTypes.OR_KEYWORD -> (leftVal.toBoolean() || rightVal.toBoolean()).toBigInteger()
                     else -> null// .also { registerProblem(this, "returned null in 4: ${this.text}")}
                 }
-            } else if (this is PyPrefixExpression) {// not True
+            } else if (this is PyPrefixExpression) {
                 return when (this.operator) {
-                    PyTokenTypes.NOT_KEYWORD -> this.operand?.calculateValue(predefinedExpr)?.toBoolean()?.not()?.toBigInteger()
+                    PyTokenTypes.NOT_KEYWORD ->// not True
+                        this.operand?.calculateValue(predefinedExpr)?.toBoolean()?.not()?.toBigInteger()
+                    PyTokenTypes.MINUS -> // -5 < 0
+                        this.operand?.calculateValue(predefinedExpr)?.unaryMinus()
                     else -> null// .also { registerProblem(this, "returned null in 5: ${this.text}")}
                 }
             } else if (this is PyParenthesizedExpression) {// (2 + 2)
@@ -235,8 +238,8 @@ class PyConstantExpression : PyInspection() {
                     }
                 }
                 
-            } else if (this is PyPrefixExpression && this.operator == PyTokenTypes.NOT_KEYWORD) {// not (x > 5)
-                if (this.operand is PyReferenceExpression) {// 'x and not x'
+            } else if (this is PyPrefixExpression && this.operator == PyTokenTypes.NOT_KEYWORD) {// not ...
+                if (this.operand is PyReferenceExpression) {// 'not x'
                     divisions += Division.notEq(this.operand!!, this.operand!!.text, BigInteger.ZERO)
                 } else {
                     this.operand?.collectDivisions(divisions)
@@ -395,7 +398,8 @@ class PyConstantExpression : PyInspection() {
  * a  b  c - first set,
  * 1  2  3 - second set,
  * x  y  z - third set
- * @return (a,1,x), (a,1,y), (a,1,z), (a, 2, x), ...
+ *
+ * will return (a,1,x), (a,1,y), (a,1,z), (a, 2, x), ...
  */
 private fun <T> cartesianProduct(setList: List<List<T>>): List<List<T>> {
     
